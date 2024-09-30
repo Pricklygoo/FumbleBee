@@ -215,7 +215,7 @@
 
     // Function to load the fly sound using Web Audio API
     function loadFlySound() {
-        return fetch('fly.mp3')
+        return fetch('assets/fly.mp3')
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`HTTP error! Status: ${response.status}`);
