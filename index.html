@@ -1,0 +1,570 @@
+<!DOCTYPE html>
+<html lang="en">
+<!-- Link to CSS -->
+<link rel="stylesheet" href="style.css">
+
+<!-- Script tags -->
+<script src="script.js"></script>
+<script>
+  window.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+  });
+</script>
+<head>
+    <meta charset="UTF-8">
+    <title>Bumblebee Flight</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #CC5500; /* Very dark orange background */
+        }
+        #gameCanvas {
+            display: block;
+            margin: 0;
+            padding: 0;
+            background-color: #CC5500; /* Match the body's background color */
+        }
+        #score {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #FFFF00; /* Yellow text */
+            font-family: 'Press Start 2P', Arial, sans-serif;
+            font-size: 105px; /* Approximately 220% of the original size */
+            font-weight: bold;
+            background-color: rgba(0, 0, 0, 0.8); /* Black background with 80% opacity */
+            padding: 20px;
+            border-radius: 10px;
+            z-index: 1;
+        }
+        /* Load the 8-bit style font */
+        @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+        #startScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('assets/titlescreen.png');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            z-index: 2;
+        }
+
+        #gameOverScreen {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-image: url('gameover.png');
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            display: none;
+            z-index: 3;
+        }
+
+        #finalScore {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #000000; /* Black text */
+            font-family: 'Press Start 2P', Arial, sans-serif;
+            font-size: 72px;
+            font-weight: bold;
+            text-align: center;
+            z-index: 4;
+        }
+    </style>
+</head>
+<body>
+
+<canvas id="gameCanvas"></canvas>
+<div id="score">0</div>
+<div id="startScreen"></div>
+<div id="gameOverScreen">
+    <div id="finalScore"></div>
+</div>
+
+<script>
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+
+    // Adjust canvas size to fill the browser window
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+
+    let bee = {
+        x: 200,
+        y: canvas.height / 2,
+        width: 120, // Bee size remains the same
+        height: 120, // Bee size remains the same
+        gravity: 0.6, // Adjusted gravity
+        lift: -18.4,    // Adjusted lift
+        velocity: 0
+    };
+    let pillars = [];
+    let score = 0;
+    let gameOver = false;
+    let isStarted = false;
+
+    let backgroundX = 0; // For background parallax
+    let pillarCount = 0; // To track pillars for checkpoints
+
+    const startScreen = document.getElementById('startScreen');
+    const scoreDisplay = document.getElementById('score');
+    const gameOverScreen = document.getElementById('gameOverScreen');
+    const finalScoreDisplay = document.getElementById('finalScore');
+
+    // Audio context and variables
+    let audioContext = null;
+    let flySoundBuffer = null;
+    let flySource = null;
+    let gainNode = null;
+
+    // Bee rotation variables
+    let beeRotation = 0;
+
+    // Bee animation variables
+    const beeImages = [];
+    let beeFrameIndex = 0;
+    let frameCount = 0;
+
+    // Variables to track loaded assets
+    let assetsLoaded = 0;
+    const totalAssets = 6; // Number of images updated to include bee1 and bee2
+
+    function assetLoaded() {
+        assetsLoaded++;
+        if (assetsLoaded === totalAssets) {
+            // All assets loaded, initial draw
+            draw();
+        }
+    }
+
+    // Load images
+    const beeImage1 = new Image();
+    beeImage1.onload = assetLoaded;
+    beeImage1.src = 'assets/bee1.png';
+
+    const beeImage2 = new Image();
+    beeImage2.onload = assetLoaded;
+    beeImage2.src = 'assets/bee2.png';
+
+    beeImages.push(beeImage1, beeImage2);
+
+    const pillarImage = new Image();
+    pillarImage.onload = assetLoaded;
+    pillarImage.src = 'assets/pillar.png';
+
+    const checkpointImage = new Image();
+    checkpointImage.onload = assetLoaded;
+    checkpointImage.src = 'assets/checkpoint.png';
+
+    const backgroundImage = new Image();
+    backgroundImage.onload = assetLoaded;
+    backgroundImage.src = 'assets/honeycomb.png';
+
+    // Load game over screen image
+    const gameOverImage = new Image();
+    gameOverImage.src = 'assets/gameover.png';
+
+    // Load title screen music
+    const titleMusic = new Audio('assets/music.mp3');
+    titleMusic.loop = false;
+
+    // Loop music with a one-second pause
+    titleMusic.addEventListener('ended', function() {
+        setTimeout(function() {
+            titleMusic.play();
+        }, 1000);
+    });
+
+    // Start playing title music after user interaction
+    function startTitleMusic() {
+        titleMusic.play().catch(e => console.error('Error playing title music:', e));
+    }
+
+    // Try to play title music on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        titleMusic.play().catch(e => {
+            // Autoplay was prevented
+            console.warn('Autoplay prevented:', e);
+            // Start music after user interaction
+            document.addEventListener('click', startTitleMusic, { once: true });
+        });
+    });
+
+    // Load collision and score sounds using Audio objects
+    const collisionSound = new Audio('assets/collision.mp3');
+    const scoreSound = new Audio('assets/score.mp3');
+
+    // Preload audio
+    collisionSound.preload = 'auto';
+    scoreSound.preload = 'auto';
+
+    // Adjust volume if needed
+    collisionSound.volume = 0.7;
+    scoreSound.volume = 0.6;
+
+    // Function to load the fly sound using Web Audio API
+    function loadFlySound() {
+        return fetch('fly.mp3')
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
+                return response.arrayBuffer();
+            })
+            .then(arrayBuffer => audioContext.decodeAudioData(arrayBuffer))
+            .then(buffer => {
+                flySoundBuffer = buffer;
+                console.log('Fly sound loaded successfully.');
+            })
+            .catch(e => console.error('Error loading fly sound:', e));
+    }
+
+    // Function to start the fly sound
+    function startFlySound() {
+        if (flySoundBuffer) {
+            flySource = audioContext.createBufferSource();
+            flySource.buffer = flySoundBuffer;
+            flySource.loop = true;
+
+            // Set loopStart and loopEnd for seamless looping
+            flySource.loopStart = 0.1;
+            flySource.loopEnd = flySoundBuffer.duration -0.3;
+
+            gainNode = audioContext.createGain();
+            gainNode.gain.value = 0.5; // Adjust volume as needed
+
+            flySource.playbackRate.value = 1;
+
+            flySource.connect(gainNode);
+            gainNode.connect(audioContext.destination);
+
+            // Resume audio context if needed
+            if (audioContext.state === 'suspended') {
+                audioContext.resume().then(() => {
+                    flySource.start(0);
+                }).catch(e => console.error('AudioContext resume error:', e));
+            } else {
+                flySource.start(0);
+            }
+        } else {
+            console.error('Fly sound buffer is not loaded.');
+        }
+    }
+
+    // Function to stop the fly sound
+    function stopFlySound() {
+        if (flySource) {
+            try {
+                flySource.stop();
+                flySource.disconnect();
+                flySource = null;
+            } catch (e) {
+                console.error('Error stopping fly sound:', e);
+            }
+        }
+    }
+
+    document.addEventListener('keydown', function(e) {
+        if (e.code === 'Space') {
+            e.preventDefault();
+            if (gameOver) {
+                resetGame();
+                requestAnimationFrame(update);
+            } else if (!isStarted) {
+                isStarted = true;
+                startScreen.style.display = 'none';
+                // Stop title music
+                titleMusic.pause();
+                titleMusic.currentTime = 0;
+                // Initialize audio context and load sound
+                if (!audioContext) {
+                    audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                    loadFlySound().then(() => {
+                        startFlySound();
+                        resetGame();
+                        requestAnimationFrame(update);
+                    }).catch(e => console.error('Error during fly sound setup:', e));
+                } else {
+                    startFlySound();
+                    resetGame();
+                    requestAnimationFrame(update);
+                }
+            } else {
+                // Apply lift to bee's velocity
+                bee.velocity += bee.lift;
+                // Set bee rotation to -45 degrees (in radians)
+                beeRotation = -45 * Math.PI / 180;
+            }
+        }
+    });
+
+    document.addEventListener('click', function() {
+        if (!isStarted) {
+            isStarted = true;
+            startScreen.style.display = 'none';
+            // Stop title music
+            titleMusic.pause();
+            titleMusic.currentTime = 0;
+            // Initialize audio context and load sound
+            if (!audioContext) {
+                audioContext = new (window.AudioContext || window.webkitAudioContext)();
+                loadFlySound().then(() => {
+                    startFlySound();
+                    resetGame();
+                    requestAnimationFrame(update);
+                }).catch(e => console.error('Error during fly sound setup:', e));
+            } else {
+                startFlySound();
+                resetGame();
+                requestAnimationFrame(update);
+            }
+        } else {
+            // Apply lift to bee's velocity
+            bee.velocity += bee.lift;
+            // Set bee rotation to -45 degrees (in radians)
+            beeRotation = -45 * Math.PI / 180;
+        }
+    });
+
+    function createPillar() {
+        let baseGapHeight = 260;
+        let gapHeight = baseGapHeight * 1.2; // Increase gap by 20%
+        let gapPosition = Math.floor(Math.random() * (canvas.height - gapHeight - 200)) + 100;
+        pillarCount++;
+        let scale = 0.75; // Pillar size remains at 75% of original
+        pillars.push({
+            x: canvas.width,
+            width: pillarImage.width * scale,
+            height: pillarImage.height * scale,
+            gapPosition: gapPosition,
+            gapHeight: gapHeight,
+            speed: 5.5,
+            scored: false,
+            isCheckpoint: (pillarCount % 3 === 0) // Every third pillar is a checkpoint
+        });
+    }
+
+    function update() {
+        if (!gameOver) {
+            // Update bee position
+            bee.velocity += bee.gravity; // Apply gravity
+            bee.y += bee.velocity;
+
+            // Update bee rotation (gradually return to 0)
+            beeRotation += 2 * Math.PI / 180; // Adjust rotation speed
+            if (beeRotation > 0) beeRotation = 0;
+
+            // Update background position for parallax effect
+            backgroundX -= 1; // Move background to the left
+            if (backgroundX <= -backgroundImage.width) {
+                backgroundX = 0;
+            }
+
+            // Adjust fly sound pitch based on bee's vertical position
+            if (flySource) {
+                const minRate = 0.5; // Minimum playback rate
+                const maxRate = 2.0; // Maximum playback rate
+                const normalizedY = (canvas.height - bee.y) / canvas.height; // 0 at bottom, 1 at top
+                const playbackRate = minRate + (maxRate - minRate) * normalizedY;
+                flySource.playbackRate.value = playbackRate;
+            }
+
+            // Prevent bee from going off-screen
+            if (bee.y + bee.height > canvas.height || bee.y < 0) {
+                gameOver = true;
+                collisionSound.play();
+                stopFlySound();
+                showGameOverScreen();
+            }
+
+            // Move pillars and check for collisions
+            for (let i = pillars.length - 1; i >= 0; i--) {
+                let p = pillars[i];
+                p.x -= p.speed;
+
+                // Adjusted collision detection
+                const collisionScale = 0.9;
+                const collisionOffsetX = (p.width * (1 - collisionScale)) / 2;
+                const collisionOffsetY = (p.height * (1 - collisionScale)) / 2;
+                const collisionWidth = p.width * collisionScale;
+                const collisionHeight = p.height * collisionScale;
+
+                // Upper pillar collision rectangle
+                const upperPillarX = p.x + collisionOffsetX;
+                const upperPillarY = p.gapPosition - p.height + collisionOffsetY;
+                const upperPillarWidth = collisionWidth;
+                const upperPillarHeight = collisionHeight;
+
+                // Lower pillar collision rectangle
+                const lowerPillarX = p.x + collisionOffsetX;
+                const lowerPillarY = p.gapPosition + p.gapHeight + collisionOffsetY;
+                const lowerPillarWidth = collisionWidth;
+                const lowerPillarHeight = collisionHeight;
+
+                // Check collision with upper pillar
+                if (
+                    bee.x + bee.width > upperPillarX &&
+                    bee.x < upperPillarX + upperPillarWidth &&
+                    bee.y + bee.height > upperPillarY &&
+                    bee.y < upperPillarY + upperPillarHeight
+                ) {
+                    gameOver = true;
+                    collisionSound.play();
+                    stopFlySound();
+                    showGameOverScreen();
+                    break;
+                }
+
+                // Check collision with lower pillar
+                if (
+                    bee.x + bee.width > lowerPillarX &&
+                    bee.x < lowerPillarX + lowerPillarWidth &&
+                    bee.y + bee.height > lowerPillarY &&
+                    bee.y < lowerPillarY + lowerPillarHeight
+                ) {
+                    gameOver = true;
+                    collisionSound.play();
+                    stopFlySound();
+                    showGameOverScreen();
+                    break;
+                }
+
+                // Check if bee has passed the pillar
+                if (!p.scored && p.x + p.width < bee.x) {
+                    p.scored = true;
+                    if (p.isCheckpoint) {
+                        score++;
+                        scoreDisplay.innerText = score;
+                        scoreSound.play();
+                    }
+                }
+
+                // Remove off-screen pillars
+                if (p.x + p.width < 0) {
+                    pillars.splice(i, 1);
+                }
+            }
+
+            // Add new pillars with increased spacing
+            if (pillars.length === 0 || pillars[pillars.length - 1].x < canvas.width - 720) {
+                createPillar();
+            }
+
+            // Update frame count for bee animation
+            frameCount++;
+
+            draw();
+            requestAnimationFrame(update);
+        } else {
+            draw();
+            // Game over screen is now handled separately
+        }
+    }
+
+    function draw() {
+        // Clear the canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw background with parallax effect
+        let bgX = backgroundX;
+        while (bgX < canvas.width) {
+            ctx.drawImage(backgroundImage, bgX, 0, backgroundImage.width, canvas.height);
+            bgX += backgroundImage.width;
+        }
+
+        // Determine current bee image for animation
+        beeFrameIndex = Math.floor((frameCount / 4)) % 2; // Switch every 4 frames (~15 times per second)
+        let currentBeeImage = beeImages[beeFrameIndex];
+
+        // Draw bee with rotation
+        ctx.save();
+        // Move to bee's center
+        ctx.translate(bee.x + bee.width / 2, bee.y + bee.height / 2);
+        // Rotate
+        ctx.rotate(beeRotation);
+        // Draw bee image
+        ctx.drawImage(currentBeeImage, -bee.width / 2, -bee.height / 2, bee.width, bee.height);
+        ctx.restore();
+
+        // Draw pillars
+        pillars.forEach(function(p) {
+            let image = p.isCheckpoint ? checkpointImage : pillarImage;
+
+            // Upper pillar
+            let upperPillarY = p.gapPosition - p.height;
+            ctx.drawImage(
+                image,
+                p.x,
+                upperPillarY,
+                p.width,
+                p.height
+            );
+
+            // Lower pillar
+            let lowerPillarY = p.gapPosition + p.gapHeight;
+            ctx.drawImage(
+                image,
+                p.x,
+                lowerPillarY,
+                p.width,
+                p.height
+            );
+        });
+    }
+
+    function resetGame() {
+        bee.y = canvas.height / 2;
+        bee.velocity = 0;
+        pillars = [];
+        score = 0;
+        scoreDisplay.innerText = score;
+        gameOver = false;
+        pillarCount = 0; // Reset pillar count
+        backgroundX = 0; // Reset background position
+        beeRotation = 0; // Reset bee rotation
+        frameCount = 0; // Reset frame count for bee animation
+        gameOverScreen.style.display = 'none';
+        finalScoreDisplay.innerText = '';
+
+        // Stop any existing fly sound
+        stopFlySound();
+
+        // Start the fly sound if it's loaded
+        if (flySoundBuffer) {
+            startFlySound();
+        }
+    }
+
+    function showGameOverScreen() {
+        gameOverScreen.style.display = 'block';
+        finalScoreDisplay.innerText = 'SCORE: ' + score;
+    }
+
+    // Update canvas size when the window resizes
+    window.addEventListener('resize', function() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        // Update bee's position relative to new canvas size
+        bee.y = canvas.height / 2;
+    });
+
+    // Initial draw to display the start screen background
+    // Ensure assets are loaded before drawing
+    if (assetsLoaded === totalAssets) {
+        draw();
+    }
+</script>
+
+</body>
+</html>
