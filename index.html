@@ -56,7 +56,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-image: url('assets/titlescreen.png');
+            background-image: url('titlescreen.png');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
@@ -69,7 +69,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-image: url('assets/gameover.png');
+            background-image: url('gameover.png');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
@@ -102,14 +102,6 @@
 </div>
 
 <script>
-    // Constants for Gravity and Lift
-    const GRAVITY = 0.55; // Adjusted gravity for balanced gameplay
-    const LIFT = -16.0;   // Adjusted lift for bee
-
-    // Wasp Appearance Interval
-    const WASP_PILLAR_INTERVAL_DEFAULT = 20; // Default: Every 20th pillar
-    let waspPillarInterval = WASP_PILLAR_INTERVAL_DEFAULT;
-
     const canvas = document.getElementById('gameCanvas');
     const ctx = canvas.getContext('2d');
 
@@ -117,14 +109,13 @@
     canvas.width = window.innerWidth;
     canvas.height = window.innerHeight;
 
-    // Game Objects
     let bee = {
         x: 200,
         y: canvas.height / 2,
         width: 120, // Bee size remains the same
         height: 120, // Bee size remains the same
-        gravity: GRAVITY,
-        lift: LIFT,
+        gravity: 0.6, // Adjusted gravity
+        lift: -18.4,    // Adjusted lift
         velocity: 0
     };
     let pillars = [];
@@ -137,11 +128,13 @@
     let pillarSpacing = 1080; // Increased horizontal spacing between pillars by 50%
 
     let extraLives = 0; // Number of extra lives
-    const MAX_EXTRA_LIVES = 3; // Maximum number of extra lives
+    let maxExtraLives = 3; // Maximum number of extra lives
     let invulnerable = false;
     let invulnerableTimer = 0;
 
     let wasp = null; // Wasp object
+    let waspTimer = 0; // Timer for wasp appearance
+    let waspInterval = getRandomWaspInterval(); // Next wasp appearance time
 
     const startScreen = document.getElementById('startScreen');
     const scoreDisplay = document.getElementById('score');
@@ -176,81 +169,68 @@
         if (assetsLoaded === totalAssets) {
             // All assets loaded, initial draw
             draw();
-            // Attempt to play title music on page load
-            startTitleMusic();
         }
     }
 
     // Load images
     const beeImage1 = new Image();
     beeImage1.onload = assetLoaded;
-    beeImage1.src = 'assets/bee1.png';
+    beeImage1.src = 'bee1.png';
 
     const beeImage2 = new Image();
     beeImage2.onload = assetLoaded;
-    beeImage2.src = 'assets/bee2.png';
+    beeImage2.src = 'bee2.png';
 
     beeImages.push(beeImage1, beeImage2);
 
     const waspImage1 = new Image();
     waspImage1.onload = assetLoaded;
-    waspImage1.src = 'assets/wasp1.png';
+    waspImage1.src = 'wasp1.png';
 
     const waspImage2 = new Image();
     waspImage2.onload = assetLoaded;
-    waspImage2.src = 'assets/wasp2.png';
+    waspImage2.src = 'wasp2.png';
 
     waspImages.push(waspImage1, waspImage2);
 
     const lifeImage = new Image();
     lifeImage.onload = assetLoaded;
-    lifeImage.src = 'assets/life.png';
+    lifeImage.src = 'life.png';
 
     const pillarImage = new Image();
     pillarImage.onload = assetLoaded;
-    pillarImage.src = 'assets/pillar.png';
+    pillarImage.src = 'pillar.png';
 
     const backgroundImage = new Image();
     backgroundImage.onload = assetLoaded;
-    backgroundImage.src = 'assets/honeycomb.png';
+    backgroundImage.src = 'honeycomb.png';
 
     // Load game over screen image
     const gameOverImage = new Image();
-    gameOverImage.src = 'assets/gameover.png';
+    gameOverImage.src = 'gameover.png';
 
     // Load title screen music
-    const titleMusic = new Audio('assets/music.mp3');
+    const titleMusic = new Audio('music.mp3');
     titleMusic.loop = false;
 
     // Loop music with a one-second pause
     titleMusic.addEventListener('ended', function() {
         setTimeout(function() {
-            titleMusic.play().catch(e => console.error('Error replaying title music:', e));
+            titleMusic.play();
         }, 1000);
     });
 
     // Function to start playing title music
     function startTitleMusic() {
-        titleMusic.play().catch(e => {
-            console.warn('Autoplay prevented:', e);
-            // Start music after user interaction
-            document.addEventListener('click', startTitleMusic, { once: true });
-            document.addEventListener('keydown', startTitleMusic, { once: true });
-        });
-    }
-
-    // Function to stop title music
-    function stopTitleMusic() {
-        titleMusic.pause();
-        titleMusic.currentTime = 0;
+        titleMusic.play().catch(e => console.error('Error playing title music:', e));
     }
 
     // Load collision and score sounds using Audio objects
-    const collisionSound = new Audio('assets/collision.mp3');
-    const scoreSound = new Audio('assets/score.mp3');
-    const buzzSound = new Audio('assets/buzz.mp3');
-    const yellSound = new Audio('assets/yell.mp3');
-    const healthSound = new Audio('assets/health.mp3');
+    const collisionSound = new Audio('collision.mp3');
+    const scoreSound = new Audio('score.mp3');
+    const buzzSound = new Audio('buzz.mp3');
+    const yellSound = new Audio('yell.mp3');
+    const healthSound = new Audio('health.mp3');
 
     // Preload audio
     collisionSound.preload = 'auto';
@@ -268,7 +248,7 @@
 
     // Function to load the fly sound using Web Audio API
     function loadFlySound() {
-        return fetch('assets/fly.mp3')
+        return fetch('fly.mp3')
             .then(response => {
                 if (!response.ok) {
                     throw new Error(`HTTP error! Status: ${response.status}`);
@@ -328,7 +308,6 @@
         }
     }
 
-    // Event Listener for Keydown (Spacebar)
     document.addEventListener('keydown', function(e) {
         if (e.code === 'Space') {
             e.preventDefault();
@@ -338,8 +317,8 @@
             } else if (!isStarted) {
                 isStarted = true;
                 startScreen.style.display = 'none';
-                // Stop title music
-                stopTitleMusic();
+                // Start title music here
+                startTitleMusic();
                 // Initialize audio context and load sound
                 if (!audioContext) {
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -362,7 +341,6 @@
         }
     });
 
-    // Event Listener for Click
     document.addEventListener('click', function() {
         if (gameOver) {
             resetGame();
@@ -370,8 +348,8 @@
         } else if (!isStarted) {
             isStarted = true;
             startScreen.style.display = 'none';
-            // Stop title music
-            stopTitleMusic();
+            // Start title music here
+            startTitleMusic();
             // Initialize audio context and load sound
             if (!audioContext) {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -399,29 +377,18 @@
         let gapPosition = Math.floor(Math.random() * (canvas.height - gapHeight - 200)) + 100;
         pillarCount++;
         let scale = 0.75; // Pillar size remains at 75% of original
-
-        // Check if it's time to spawn a wasp
-        if (pillarCount % waspPillarInterval === 0) {
-            // Replace this pillar with a wasp
-            spawnWasp(gapPosition + gapHeight / 2);
-        } else {
-            pillars.push({
-                x: canvas.width,
-                width: pillarImage.width * scale,
-                height: pillarImage.height * scale,
-                gapPosition: gapPosition,
-                gapHeight: gapHeight,
-                speed: 4.5,
-                scored: false
-            });
-        }
+        pillars.push({
+            x: canvas.width,
+            width: pillarImage.width * scale,
+            height: pillarImage.height * scale,
+            gapPosition: gapPosition,
+            gapHeight: gapHeight,
+            speed: 5.5,
+            scored: false
+        });
     }
 
-    function update(timestamp) {
-        if (!lastTimestamp) lastTimestamp = timestamp;
-        let deltaTime = timestamp - lastTimestamp;
-        lastTimestamp = timestamp;
-
+    function update(deltaTime) {
         if (!gameOver) {
             // Update bee position
             bee.velocity += bee.gravity; // Apply gravity
@@ -466,130 +433,138 @@
                 }
             }
 
+            // Update wasp timer
+            waspTimer += deltaTime;
+            if (!wasp && waspTimer >= waspInterval * 1000) {
+                spawnWasp();
+                waspTimer = 0;
+                waspInterval = getRandomWaspInterval();
+            }
+
             // Move wasp if it exists
             if (wasp) {
                 updateWasp(deltaTime);
-            }
+            } else {
+                // Move pillars and check for collisions
+                for (let i = pillars.length - 1; i >= 0; i--) {
+                    let p = pillars[i];
+                    p.x -= p.speed;
 
-            // Move pillars and check for collisions
-            for (let i = pillars.length - 1; i >= 0; i--) {
-                let p = pillars[i];
-                p.x -= p.speed;
+                    // Adjusted collision detection
+                    const collisionScale = invulnerable ? 0 : 0.9;
+                    const collisionOffsetX = (p.width * (1 - collisionScale)) / 2;
+                    const collisionOffsetY = (p.height * (1 - collisionScale)) / 2;
+                    const collisionWidth = p.width * collisionScale;
+                    const collisionHeight = p.height * collisionScale;
 
-                // Adjusted collision detection
-                const collisionScale = invulnerable ? 0 : 0.9;
-                const collisionOffsetX = (p.width * (1 - collisionScale)) / 2;
-                const collisionOffsetY = (p.height * (1 - collisionScale)) / 2;
-                const collisionWidth = p.width * collisionScale;
-                const collisionHeight = p.height * collisionScale;
+                    // Upper pillar collision rectangle
+                    const upperPillarX = p.x + collisionOffsetX;
+                    const upperPillarY = p.gapPosition - p.height + collisionOffsetY;
+                    const upperPillarWidth = collisionWidth;
+                    const upperPillarHeight = collisionHeight;
 
-                // Upper pillar collision rectangle
-                const upperPillarX = p.x + collisionOffsetX;
-                const upperPillarY = p.gapPosition - p.height + collisionOffsetY;
-                const upperPillarWidth = collisionWidth;
-                const upperPillarHeight = collisionHeight;
+                    // Lower pillar collision rectangle
+                    const lowerPillarX = p.x + collisionOffsetX;
+                    const lowerPillarY = p.gapPosition + p.gapHeight + collisionOffsetY;
+                    const lowerPillarWidth = collisionWidth;
+                    const lowerPillarHeight = collisionHeight;
 
-                // Lower pillar collision rectangle
-                const lowerPillarX = p.x + collisionOffsetX;
-                const lowerPillarY = p.gapPosition + p.gapHeight + collisionOffsetY;
-                const lowerPillarWidth = collisionWidth;
-                const lowerPillarHeight = collisionHeight;
+                    // Check collision with upper pillar
+                    if (
+                        !invulnerable &&
+                        bee.x + bee.width > upperPillarX &&
+                        bee.x < upperPillarX + upperPillarWidth &&
+                        bee.y + bee.height > upperPillarY &&
+                        bee.y < upperPillarY + upperPillarHeight
+                    ) {
+                        if (extraLives > 0) {
+                            useExtraLife();
+                            break;
+                        } else {
+                            gameOver = true;
+                            collisionSound.play();
+                            stopFlySound();
+                            showGameOverScreen();
+                            break;
+                        }
+                    }
 
-                // Check collision with upper pillar
-                if (
-                    !invulnerable &&
-                    bee.x + bee.width > upperPillarX &&
-                    bee.x < upperPillarX + upperPillarWidth &&
-                    bee.y + bee.height > upperPillarY &&
-                    bee.y < upperPillarY + upperPillarHeight
-                ) {
-                    if (extraLives > 0) {
-                        useExtraLife();
-                        break;
-                    } else {
-                        gameOver = true;
-                        collisionSound.play();
-                        stopFlySound();
-                        showGameOverScreen();
-                        break;
+                    // Check collision with lower pillar
+                    if (
+                        !invulnerable &&
+                        bee.x + bee.width > lowerPillarX &&
+                        bee.x < lowerPillarX + lowerPillarWidth &&
+                        bee.y + bee.height > lowerPillarY &&
+                        bee.y < lowerPillarY + lowerPillarHeight
+                    ) {
+                        if (extraLives > 0) {
+                            useExtraLife();
+                            break;
+                        } else {
+                            gameOver = true;
+                            collisionSound.play();
+                            stopFlySound();
+                            showGameOverScreen();
+                            break;
+                        }
+                    }
+
+                    // Check if bee has passed the pillar
+                    if (!p.scored && p.x + p.width < bee.x) {
+                        p.scored = true;
+                        if (!invulnerable) {
+                            score++;
+                            scoreDisplay.innerText = score;
+                            scoreSound.play();
+                        }
+                    }
+
+                    // Remove off-screen pillars
+                    if (p.x + p.width < 0) {
+                        pillars.splice(i, 1);
                     }
                 }
 
-                // Check collision with lower pillar
-                if (
-                    !invulnerable &&
-                    bee.x + bee.width > lowerPillarX &&
-                    bee.x < lowerPillarX + lowerPillarWidth &&
-                    bee.y + bee.height > lowerPillarY &&
-                    bee.y < lowerPillarY + lowerPillarHeight
-                ) {
-                    if (extraLives > 0) {
-                        useExtraLife();
-                        break;
-                    } else {
-                        gameOver = true;
-                        collisionSound.play();
-                        stopFlySound();
-                        showGameOverScreen();
-                        break;
-                    }
+                // Add new pillars with increased spacing
+                if (pillars.length === 0 || pillars[pillars.length - 1].x < canvas.width - pillarSpacing) {
+                    createPillar();
                 }
-
-                // Check if bee has passed the pillar
-                if (!p.scored && p.x + p.width < bee.x) {
-                    p.scored = true;
-                    if (!invulnerable) {
-                        score++;
-                        scoreDisplay.innerText = score;
-                        scoreSound.play();
-                    }
-                }
-
-                // Remove off-screen pillars
-                if (p.x + p.width < 0) {
-                    pillars.splice(i, 1);
-                }
-            }
-
-            // Add new pillars with increased spacing
-            if (pillars.length === 0 || pillars[pillars.length - 1].x < canvas.width - pillarSpacing) {
-                createPillar();
             }
 
             // Update frame count for bee animation
             frameCount++;
 
             draw();
-            requestAnimationFrame(update);
+            requestAnimationFrame((timestamp) => {
+                let deltaTime = timestamp - lastTimestamp;
+                lastTimestamp = timestamp;
+                update(deltaTime);
+            });
+        } else {
+            draw();
+            // Game over screen is now handled separately
+        }
+    }
+
+    function draw() {
+        // Clear the canvas
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Draw background with parallax effect
+        let bgX = backgroundX;
+        while (bgX < canvas.width) {
+            ctx.drawImage(backgroundImage, bgX, 0, backgroundImage.width, canvas.height);
+            bgX += backgroundImage.width;
         }
 
-        function draw() {
-            // Clear the canvas
-            ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Determine current bee image for animation
+        beeFrameIndex = Math.floor((frameCount / 4)) % 2; // Switch every 4 frames (~15 times per second)
+        let currentBeeImage = beeImages[beeFrameIndex];
 
-            // Draw background with parallax effect
-            let bgX = backgroundX;
-            while (bgX < canvas.width) {
-                ctx.drawImage(backgroundImage, bgX, 0, backgroundImage.width, canvas.height);
-                bgX += backgroundImage.width;
-            }
-
-            // Determine current bee image for animation
-            beeFrameIndex = Math.floor((frameCount / 4)) % 2; // Switch every 4 frames (~15 times per second)
-            let currentBeeImage = beeImages[beeFrameIndex];
-
-            // Handle invulnerability flashing
-            if (invulnerable) {
-                if (Math.floor(frameCount / 7) % 2 === 0) {
-                    // Don't draw the bee (invisible frame)
-                } else {
-                    // Draw bee with rotation
-                    ctx.save();
-                    ctx.translate(bee.x + bee.width / 2, bee.y + bee.height / 2);
-                    ctx.rotate(beeRotation);
-                    ctx.drawImage(currentBeeImage, -bee.width / 2, -bee.height / 2, bee.width, bee.height);
-                    ctx.restore();
-                }
+        // Handle invulnerability flashing
+        if (invulnerable) {
+            if (Math.floor(frameCount / 7) % 2 === 0) {
+                // Don't draw the bee (invisible frame)
             } else {
                 // Draw bee with rotation
                 ctx.save();
@@ -598,21 +573,28 @@
                 ctx.drawImage(currentBeeImage, -bee.width / 2, -bee.height / 2, bee.width, bee.height);
                 ctx.restore();
             }
+        } else {
+            // Draw bee with rotation
+            ctx.save();
+            ctx.translate(bee.x + bee.width / 2, bee.y + bee.height / 2);
+            ctx.rotate(beeRotation);
+            ctx.drawImage(currentBeeImage, -bee.width / 2, -bee.height / 2, bee.width, bee.height);
+            ctx.restore();
+        }
 
-            // Draw wasp if it exists
-            if (wasp) {
-                waspFrameIndex = Math.floor((frameCount / 4)) % 2;
-                let currentWaspImage = waspImages[waspFrameIndex];
+        // Draw wasp if it exists
+        if (wasp) {
+            waspFrameIndex = Math.floor((frameCount / 4)) % 2;
+            let currentWaspImage = waspImages[waspFrameIndex];
 
-                ctx.drawImage(
-                    currentWaspImage,
-                    wasp.x,
-                    wasp.y,
-                    wasp.width,
-                    wasp.height
-                );
-            }
-
+            ctx.drawImage(
+                currentWaspImage,
+                wasp.x,
+                wasp.y,
+                wasp.width,
+                wasp.height
+            );
+        } else {
             // Draw pillars
             pillars.forEach(function(p) {
                 // Upper pillar
@@ -635,140 +617,144 @@
                     p.height
                 );
             });
-
-            // Draw extra lives
-            drawLives();
         }
 
-        function resetGame() {
-            bee.y = canvas.height / 2;
-            bee.velocity = 0;
-            pillars = [];
-            score = 0;
-            scoreDisplay.innerText = score;
-            gameOver = false;
-            pillarCount = 0; // Reset pillar count
-            backgroundX = 0; // Reset background position
-            beeRotation = 0; // Reset bee rotation
-            frameCount = 0; // Reset frame count for bee animation
-            extraLives = 0; // Reset extra lives
-            invulnerable = false;
-            invulnerableTimer = 0;
-            wasp = null;
-            gameOverScreen.style.display = 'none';
-            finalScoreDisplay.innerText = '';
+        // Draw extra lives
+        drawLives();
+    }
 
-            // Stop any existing fly sound
-            stopFlySound();
+    function resetGame() {
+        bee.y = canvas.height / 2;
+        bee.velocity = 0;
+        pillars = [];
+        score = 0;
+        scoreDisplay.innerText = score;
+        gameOver = false;
+        pillarCount = 0; // Reset pillar count
+        backgroundX = 0; // Reset background position
+        beeRotation = 0; // Reset bee rotation
+        frameCount = 0; // Reset frame count for bee animation
+        extraLives = 0; // Reset extra lives
+        invulnerable = false;
+        invulnerableTimer = 0;
+        wasp = null;
+        waspTimer = 0;
+        waspInterval = getRandomWaspInterval();
+        gameOverScreen.style.display = 'none';
+        finalScoreDisplay.innerText = '';
 
-            // Start the fly sound if it's loaded
-            if (flySoundBuffer) {
-                startFlySound();
-            }
+        // Stop any existing fly sound
+        stopFlySound();
 
-            // Start the update loop
-            requestAnimationFrame(update);
+        // Start the fly sound if it's loaded
+        if (flySoundBuffer) {
+            startFlySound();
+        }
+    }
+
+    function showGameOverScreen() {
+        gameOverScreen.style.display = 'block';
+        finalScoreDisplay.innerText = 'SCORE: ' + score;
+    }
+
+    function drawLives() {
+        // Clear previous lives display
+        livesDisplay.innerHTML = '';
+
+        for (let i = 0; i < extraLives; i++) {
+            let img = document.createElement('img');
+            img.src = 'life.png';
+            img.style.height = '70px'; // Adjust as needed
+            livesDisplay.appendChild(img);
+        }
+    }
+
+    function useExtraLife() {
+        extraLives--;
+        invulnerable = true;
+        invulnerableTimer = 3000; // 3 seconds of invulnerability
+        healthSound.play();
+    }
+
+    function spawnWasp() {
+        // Stop generating pillars
+        pillars = [];
+
+        let waspWidth = 100;
+        let waspHeight = 100;
+        let buffer = canvas.height * 0.2; // 1/5th of the game space
+        wasp = {
+            x: canvas.width, // Start at the right edge
+            y: Math.random() * (canvas.height - buffer * 2 - waspHeight) + buffer,
+            width: waspWidth,
+            height: waspHeight,
+            speed: 3, // Horizontal speed
+            verticalSpeed: 2, // Vertical speed
+            direction: Math.random() < 0.5 ? 1 : -1 // Random initial vertical direction
+        };
+        buzzSound.play();
+    }
+
+    function updateWasp(deltaTime) {
+        // Move wasp horizontally
+        wasp.x -= wasp.speed;
+
+        // Move wasp vertically
+        let buffer = canvas.height * 0.2; // 1/5th of the game space
+        wasp.y += wasp.verticalSpeed * wasp.direction;
+
+        // Reverse direction if it hits the buffer limits
+        if (wasp.y <= buffer || wasp.y + wasp.height >= canvas.height - buffer) {
+            wasp.direction *= -1;
         }
 
-        function showGameOverScreen() {
-            gameOverScreen.style.display = 'block';
-            finalScoreDisplay.innerText = 'SCORE: ' + score;
+        // Check collision with bee
+        if (
+            bee.x + bee.width > wasp.x &&
+            bee.x < wasp.x + wasp.width &&
+            bee.y + bee.height > wasp.y &&
+            bee.y < wasp.y + wasp.height
+        ) {
+            // Collect wasp
+            collectWasp();
         }
 
-        function drawLives() {
-            // Clear previous lives display
-            livesDisplay.innerHTML = '';
-
-            for (let i = 0; i < extraLives; i++) {
-                let img = document.createElement('img');
-                img.src = 'assets/life.png';
-                img.style.height = '70px'; // Adjust as needed
-                livesDisplay.appendChild(img);
-            }
-        }
-
-        function useExtraLife() {
-            extraLives--;
-            drawLives();
-            invulnerable = true;
-            invulnerableTimer = 3000; // 3 seconds of invulnerability
-            healthSound.play();
-        }
-
-        function spawnWasp(yPosition) {
-            let waspWidth = 100;
-            let waspHeight = 100;
-            let buffer = canvas.height * 0.2; // 1/5th of the game space
-            wasp = {
-                x: canvas.width, // Start at the right edge
-                y: yPosition - waspHeight / 2, // Centered vertically at the gap
-                width: waspWidth,
-                height: waspHeight,
-                speed: 5.5, // Match pillar speed
-                verticalSpeed: 2, // Vertical speed
-                direction: Math.random() < 0.5 ? 1 : -1 // Random initial vertical direction
-            };
-            buzzSound.play();
-        }
-
-        function updateWasp(deltaTime) {
-            // Move wasp horizontally
-            wasp.x -= wasp.speed;
-
-            // Move wasp vertically
-            let buffer = canvas.height * 0.2; // 1/5th of the game space
-            wasp.y += wasp.verticalSpeed * wasp.direction;
-
-            // Reverse direction if it hits the buffer limits
-            if (wasp.y <= buffer || wasp.y + wasp.height >= canvas.height - buffer) {
-                wasp.direction *= -1;
-            }
-
-            // Check collision with bee
-            if (
-                bee.x + bee.width > wasp.x &&
-                bee.x < wasp.x + wasp.width &&
-                bee.y + bee.height > wasp.y &&
-                bee.y < wasp.y + wasp.height
-            ) {
-                // Collect wasp
-                collectWasp();
-            }
-
-            // Remove wasp if it goes off-screen
-            if (wasp.x + wasp.width < 0) {
-                wasp = null;
-            }
-        }
-
-        function collectWasp() {
-            if (extraLives < MAX_EXTRA_LIVES) {
-                extraLives++;
-                drawLives();
-                yellSound.play();
-            }
+        // Remove wasp if it goes off-screen
+        if (wasp.x + wasp.width < 0) {
             wasp = null;
         }
+    }
 
-        // Variable to track last timestamp for deltaTime calculation
-        let lastTimestamp = 0;
-
-        // Update canvas size when the window resizes
-        window.addEventListener('resize', function() {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            // Update bee's position relative to new canvas size
-            bee.y = canvas.height / 2;
-        });
-
-        // Initial draw to display the start screen background
-        // Ensure assets are loaded before drawing
-        if (assetsLoaded === totalAssets) {
-            draw();
-            // Attempt to play title music on page load
-            startTitleMusic();
+    function collectWasp() {
+        if (extraLives < maxExtraLives) {
+            extraLives++;
+            drawLives();
+            yellSound.play();
         }
-    </script>
+        wasp = null;
+    }
+
+    function getRandomWaspInterval() {
+        return Math.floor(Math.random() * (28 - 20 + 1)) + 20; // Between 20 and 28 seconds
+    }
+
+    // Variable to track last timestamp for deltaTime calculation
+    let lastTimestamp = 0;
+
+    // Update canvas size when the window resizes
+    window.addEventListener('resize', function() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        // Update bee's position relative to new canvas size
+        bee.y = canvas.height / 2;
+    });
+
+    // Initial draw to display the start screen background
+    // Ensure assets are loaded before drawing
+    if (assetsLoaded === totalAssets) {
+        draw();
+    }
+</script>
 
 </body>
 </html>
