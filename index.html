@@ -1,5 +1,15 @@
 <!DOCTYPE html>
 <html lang="en">
+<!-- Link to CSS -->
+<link rel="stylesheet" href="style.css">
+
+<!-- Script tags -->
+<script src="script.js"></script>
+<script>
+  window.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+  });
+</script>
 <head>
     <meta charset="UTF-8">
     <title>Bumblebee Flight</title>
@@ -87,17 +97,8 @@
     const ctx = canvas.getContext('2d');
 
     // Adjust canvas size to fill the browser window
-    function resizeCanvas() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        // Recalculate background scale based on new size
-        backgroundScale = canvas.height / backgroundImage.height;
-        // Update bee's position relative to new canvas size
-        bee.y = canvas.height / 2;
-    }
-
-    window.addEventListener('resize', resizeCanvas);
-    resizeCanvas();
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
 
     let bee = {
         x: 200,
@@ -140,19 +141,13 @@
 
     // Variables to track loaded assets
     let assetsLoaded = 0;
-    const totalAssets = 5; // Number of images (bee1, bee2, pillar, background, gameover)
-
-    let backgroundScale = 1; // Scale factor for background
+    const totalAssets = 6; // Number of images updated to include bee1 and bee2
 
     function assetLoaded() {
         assetsLoaded++;
         if (assetsLoaded === totalAssets) {
-            // All assets loaded, calculate background scale
-            backgroundScale = canvas.height / backgroundImage.height;
             // All assets loaded, initial draw
             draw();
-            // Start title music
-            startTitleMusic();
         }
     }
 
@@ -171,13 +166,14 @@
     pillarImage.onload = assetLoaded;
     pillarImage.src = 'assets/pillar.png';
 
+    // Removed checkpointImage as checkpoints are no longer needed
+
     const backgroundImage = new Image();
     backgroundImage.onload = assetLoaded;
     backgroundImage.src = 'assets/honeycomb.png';
 
     // Load game over screen image
     const gameOverImage = new Image();
-    gameOverImage.onload = assetLoaded;
     gameOverImage.src = 'assets/gameover.png';
 
     // Load title screen music
@@ -187,7 +183,7 @@
     // Loop music with a one-second pause
     titleMusic.addEventListener('ended', function() {
         setTimeout(function() {
-            titleMusic.play().catch(e => console.error('Error replaying title music:', e));
+            titleMusic.play();
         }, 1000);
     });
 
@@ -353,7 +349,7 @@
 
             // Update background position for parallax effect
             backgroundX -= 1; // Move background to the left
-            if (backgroundX <= -backgroundImage.width * backgroundScale) {
+            if (backgroundX <= -backgroundImage.width) {
                 backgroundX = 0;
             }
 
@@ -457,15 +453,30 @@
     }
 
     function draw() {
-        // Clear the canvas
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
+    // Clear the canvas
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-        // Draw background with parallax effect
-        let bgX = backgroundX;
-        while (bgX < canvas.width) {
-            ctx.drawImage(backgroundImage, bgX, 0, backgroundImage.width * backgroundScale, canvas.height);
-            bgX += backgroundImage.width * backgroundScale;
-        }
+    // Draw background with parallax effect and maintain aspect ratio
+    let bgAspectRatio = backgroundImage.width / backgroundImage.height;
+    let canvasAspectRatio = canvas.width / canvas.height;
+
+    let bgWidth, bgHeight;
+
+    if (canvasAspectRatio > bgAspectRatio) {
+        // Canvas is wider than the background, match height
+        bgHeight = canvas.height;
+        bgWidth = bgHeight * bgAspectRatio;
+    } else {
+        // Canvas is taller than the background, match width
+        bgWidth = canvas.width;
+        bgHeight = bgWidth / bgAspectRatio;
+    }
+
+    let bgX = backgroundX;
+    while (bgX < canvas.width) {
+        ctx.drawImage(backgroundImage, bgX, 0, bgWidth, bgHeight);
+        bgX += bgWidth;
+    }
 
         // Determine current bee image for animation
         beeFrameIndex = Math.floor((frameCount / 4)) % 2; // Switch every 4 frames (~15 times per second)
@@ -535,28 +546,12 @@
         finalScoreDisplay.innerText = 'SCORE: ' + score;
     }
 
-    // Unified Controls for Click and Spacebar to Restart the Game
-    function handleRestart() {
-        if (gameOver) {
-            resetGame();
-            requestAnimationFrame(update);
-        }
-    }
-
-    // Add Event Listener for Restarting the Game on Game Over Screen Click or Spacebar
-    gameOverScreen.addEventListener('click', handleRestart);
-    gameOverScreen.addEventListener('keydown', function(e) {
-        if (e.code === 'Space') {
-            e.preventDefault();
-            handleRestart();
-        }
-    });
-
-    // Note: Ensure the gameOverScreen is focusable to capture keydown events
-    gameOverScreen.setAttribute('tabindex', '0');
-    gameOverScreen.style.outline = 'none';
-    gameOverScreen.addEventListener('click', () => {
-        gameOverScreen.focus();
+    // Update canvas size when the window resizes
+    window.addEventListener('resize', function() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        // Update bee's position relative to new canvas size
+        bee.y = canvas.height / 2;
     });
 
     // Initial draw to display the start screen background
