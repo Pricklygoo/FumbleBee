@@ -1,15 +1,5 @@
 <!DOCTYPE html>
 <html lang="en">
-<!-- Link to CSS -->
-<link rel="stylesheet" href="style.css">
-
-<!-- Script tags -->
-<script src="script.js"></script>
-<script>
-  window.addEventListener('contextmenu', (e) => {
-    e.preventDefault();
-  });
-</script>
 <head>
     <meta charset="UTF-8">
     <title>Bumblebee Flight</title>
@@ -97,8 +87,17 @@
     const ctx = canvas.getContext('2d');
 
     // Adjust canvas size to fill the browser window
-    canvas.width = window.innerWidth;
-    canvas.height = window.innerHeight;
+    function resizeCanvas() {
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+        // Recalculate background scale based on new size
+        backgroundScale = canvas.height / backgroundImage.height;
+        // Update bee's position relative to new canvas size
+        bee.y = canvas.height / 2;
+    }
+
+    window.addEventListener('resize', resizeCanvas);
+    resizeCanvas();
 
     let bee = {
         x: 200,
@@ -141,13 +140,19 @@
 
     // Variables to track loaded assets
     let assetsLoaded = 0;
-    const totalAssets = 6; // Number of images updated to include bee1 and bee2
+    const totalAssets = 5; // Number of images (bee1, bee2, pillar, background, gameover)
+
+    let backgroundScale = 1; // Scale factor for background
 
     function assetLoaded() {
         assetsLoaded++;
         if (assetsLoaded === totalAssets) {
+            // All assets loaded, calculate background scale
+            backgroundScale = canvas.height / backgroundImage.height;
             // All assets loaded, initial draw
             draw();
+            // Start title music
+            startTitleMusic();
         }
     }
 
@@ -166,14 +171,13 @@
     pillarImage.onload = assetLoaded;
     pillarImage.src = 'assets/pillar.png';
 
-    // Removed checkpointImage as checkpoints are no longer needed
-
     const backgroundImage = new Image();
     backgroundImage.onload = assetLoaded;
     backgroundImage.src = 'assets/honeycomb.png';
 
     // Load game over screen image
     const gameOverImage = new Image();
+    gameOverImage.onload = assetLoaded;
     gameOverImage.src = 'assets/gameover.png';
 
     // Load title screen music
@@ -183,7 +187,7 @@
     // Loop music with a one-second pause
     titleMusic.addEventListener('ended', function() {
         setTimeout(function() {
-            titleMusic.play();
+            titleMusic.play().catch(e => console.error('Error replaying title music:', e));
         }, 1000);
     });
 
@@ -320,7 +324,7 @@
     });
 
     function createPillar() {
-        let baseGapHeight = 245;
+        let baseGapHeight = 260;
         let gapHeight = baseGapHeight * 1.2; // Increase gap by 20%
         let gapPosition = Math.floor(Math.random() * (canvas.height - gapHeight - 200)) + 100;
         pillarCount++;
@@ -349,7 +353,7 @@
 
             // Update background position for parallax effect
             backgroundX -= 1; // Move background to the left
-            if (backgroundX <= -backgroundImage.width) {
+            if (backgroundX <= -backgroundImage.width * backgroundScale) {
                 backgroundX = 0;
             }
 
@@ -459,8 +463,8 @@
         // Draw background with parallax effect
         let bgX = backgroundX;
         while (bgX < canvas.width) {
-            ctx.drawImage(backgroundImage, bgX, 0, backgroundImage.width, canvas.height);
-            bgX += backgroundImage.width;
+            ctx.drawImage(backgroundImage, bgX, 0, backgroundImage.width * backgroundScale, canvas.height);
+            bgX += backgroundImage.width * backgroundScale;
         }
 
         // Determine current bee image for animation
@@ -531,12 +535,28 @@
         finalScoreDisplay.innerText = 'SCORE: ' + score;
     }
 
-    // Update canvas size when the window resizes
-    window.addEventListener('resize', function() {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-        // Update bee's position relative to new canvas size
-        bee.y = canvas.height / 2;
+    // Unified Controls for Click and Spacebar to Restart the Game
+    function handleRestart() {
+        if (gameOver) {
+            resetGame();
+            requestAnimationFrame(update);
+        }
+    }
+
+    // Add Event Listener for Restarting the Game on Game Over Screen Click or Spacebar
+    gameOverScreen.addEventListener('click', handleRestart);
+    gameOverScreen.addEventListener('keydown', function(e) {
+        if (e.code === 'Space') {
+            e.preventDefault();
+            handleRestart();
+        }
+    });
+
+    // Note: Ensure the gameOverScreen is focusable to capture keydown events
+    gameOverScreen.setAttribute('tabindex', '0');
+    gameOverScreen.style.outline = 'none';
+    gameOverScreen.addEventListener('click', () => {
+        gameOverScreen.focus();
     });
 
     // Initial draw to display the start screen background
