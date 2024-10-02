@@ -473,15 +473,18 @@
     }
 
     // Adjust backgroundX to loop seamlessly, using modulus
-    backgroundX = (backgroundX - 1) % bgWidth;  // Move the background to the left
+    backgroundX = (backgroundX - 1) % bgWidth;
+    if (backgroundX < 0) {
+        backgroundX += bgWidth;
+    }
 
-    // Draw two images side by side to create the looping effect
+    // Draw two images side by side to create the seamless looping effect
     ctx.drawImage(backgroundImage, backgroundX, 0, bgWidth, bgHeight);
-    ctx.drawImage(backgroundImage, backgroundX + bgWidth, 0, bgWidth, bgHeight);
+    ctx.drawImage(backgroundImage, backgroundX - bgWidth, 0, bgWidth, bgHeight);
 
-    // Rest of the drawing code (bee, pillars, etc.) goes here...
+    // You can now proceed with the rest of your drawing logic (bee, pillars, etc.)
+    // Don't change anything else from the original logic.
 }
-
 
         // Determine current bee image for animation
         beeFrameIndex = Math.floor((frameCount / 4)) % 2; // Switch every 4 frames (~15 times per second)
