@@ -472,10 +472,13 @@
         bgHeight = bgWidth / bgAspectRatio;
     }
 
-    let bgX = backgroundX;
-    while (bgX < canvas.width) {
-        ctx.drawImage(backgroundImage, bgX, 0, bgWidth, bgHeight);
-        bgX += bgWidth;
+    // Adjust backgroundX to loop seamlessly, using modulus
+    backgroundX = (backgroundX - 1) % bgWidth;  // Move the background to the left
+
+    // Draw two images side by side to create the looping effect
+    ctx.drawImage(backgroundImage, backgroundX, 0, bgWidth, bgHeight);
+    ctx.drawImage(backgroundImage, backgroundX + bgWidth, 0, bgWidth, bgHeight);
+
     }
 
         // Determine current bee image for animation
