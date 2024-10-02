@@ -1,8 +1,18 @@
 <!DOCTYPE html>
 <html lang="en">
+<!-- Link to CSS -->
+<link rel="stylesheet" href="style.css">
+
+<!-- Script tags -->
+<script src="script.js"></script>
+<script>
+  window.addEventListener('contextmenu', (e) => {
+    e.preventDefault();
+  });
+</script>
 <head>
     <meta charset="UTF-8">
-    <title>Fumblebee</title>
+    <title>Bumblebee Flight</title>
     <style>
         body {
             margin: 0;
@@ -38,7 +48,7 @@
             left: 0;
             width: 100%;
             height: 100%;
-            background-image: url('titlescreen.png');
+            background-image: url('assets/titlescreen.png');
             background-size: cover;
             background-position: center;
             background-repeat: no-repeat;
@@ -105,9 +115,7 @@
     let isStarted = false;
 
     let backgroundX = 0; // For background parallax
-    let pillarCount = 0; // To track pillars
-    let pillarSpacing = 1080; // Increased horizontal spacing between pillars by 50%
-    // You can adjust the spacing here. For example, to increase spacing by another 10%, multiply by 1.1.
+    let pillarCount = 0; // To track pillars for checkpoints
 
     const startScreen = document.getElementById('startScreen');
     const scoreDisplay = document.getElementById('score');
@@ -130,7 +138,7 @@
 
     // Variables to track loaded assets
     let assetsLoaded = 0;
-    const totalAssets = 5; // Number of images updated after removing new assets
+    const totalAssets = 6; // Number of images updated to include bee1 and bee2
 
     function assetLoaded() {
         assetsLoaded++;
@@ -143,28 +151,32 @@
     // Load images
     const beeImage1 = new Image();
     beeImage1.onload = assetLoaded;
-    beeImage1.src = 'bee1.png';
+    beeImage1.src = 'assets/bee1.png';
 
     const beeImage2 = new Image();
     beeImage2.onload = assetLoaded;
-    beeImage2.src = 'bee2.png';
+    beeImage2.src = 'assets/bee2.png';
 
     beeImages.push(beeImage1, beeImage2);
 
     const pillarImage = new Image();
     pillarImage.onload = assetLoaded;
-    pillarImage.src = 'pillar.png';
+    pillarImage.src = 'assets/pillar.png';
+
+    const checkpointImage = new Image();
+    checkpointImage.onload = assetLoaded;
+    checkpointImage.src = 'assets/checkpoint.png';
 
     const backgroundImage = new Image();
     backgroundImage.onload = assetLoaded;
-    backgroundImage.src = 'honeycomb.png';
+    backgroundImage.src = 'assets/honeycomb.png';
 
     // Load game over screen image
     const gameOverImage = new Image();
-    gameOverImage.src = 'gameover.png';
+    gameOverImage.src = 'assets/gameover.png';
 
     // Load title screen music
-    const titleMusic = new Audio('music.mp3');
+    const titleMusic = new Audio('assets/music.mp3');
     titleMusic.loop = false;
 
     // Loop music with a one-second pause
@@ -174,14 +186,24 @@
         }, 1000);
     });
 
-    // Function to start playing title music
+    // Start playing title music after user interaction
     function startTitleMusic() {
         titleMusic.play().catch(e => console.error('Error playing title music:', e));
     }
 
+    // Try to play title music on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        titleMusic.play().catch(e => {
+            // Autoplay was prevented
+            console.warn('Autoplay prevented:', e);
+            // Start music after user interaction
+            document.addEventListener('click', startTitleMusic, { once: true });
+        });
+    });
+
     // Load collision and score sounds using Audio objects
-    const collisionSound = new Audio('collision.mp3');
-    const scoreSound = new Audio('score.mp3');
+    const collisionSound = new Audio('assets/collision.mp3');
+    const scoreSound = new Audio('assets/score.mp3');
 
     // Preload audio
     collisionSound.preload = 'auto';
@@ -217,7 +239,7 @@
 
             // Set loopStart and loopEnd for seamless looping
             flySource.loopStart = 0.1;
-            flySource.loopEnd = flySoundBuffer.duration - 0.3;
+            flySource.loopEnd = flySoundBuffer.duration -0.3;
 
             gainNode = audioContext.createGain();
             gainNode.gain.value = 0.5; // Adjust volume as needed
@@ -262,8 +284,9 @@
             } else if (!isStarted) {
                 isStarted = true;
                 startScreen.style.display = 'none';
-                // Start title music here
-                startTitleMusic();
+                // Stop title music
+                titleMusic.pause();
+                titleMusic.currentTime = 0;
                 // Initialize audio context and load sound
                 if (!audioContext) {
                     audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -287,14 +310,12 @@
     });
 
     document.addEventListener('click', function() {
-        if (gameOver) {
-            resetGame();
-            requestAnimationFrame(update);
-        } else if (!isStarted) {
+        if (!isStarted) {
             isStarted = true;
             startScreen.style.display = 'none';
-            // Start title music here
-            startTitleMusic();
+            // Stop title music
+            titleMusic.pause();
+            titleMusic.currentTime = 0;
             // Initialize audio context and load sound
             if (!audioContext) {
                 audioContext = new (window.AudioContext || window.webkitAudioContext)();
@@ -329,11 +350,12 @@
             gapPosition: gapPosition,
             gapHeight: gapHeight,
             speed: 5.5,
-            scored: false
+            scored: false,
+            isCheckpoint: (pillarCount % 3 === 0) // Every third pillar is a checkpoint
         });
     }
 
-    function update(deltaTime) {
+    function update() {
         if (!gameOver) {
             // Update bee position
             bee.velocity += bee.gravity; // Apply gravity
@@ -421,9 +443,11 @@
                 // Check if bee has passed the pillar
                 if (!p.scored && p.x + p.width < bee.x) {
                     p.scored = true;
-                    score++;
-                    scoreDisplay.innerText = score;
-                    scoreSound.play();
+                    if (p.isCheckpoint) {
+                        score++;
+                        scoreDisplay.innerText = score;
+                        scoreSound.play();
+                    }
                 }
 
                 // Remove off-screen pillars
@@ -433,7 +457,7 @@
             }
 
             // Add new pillars with increased spacing
-            if (pillars.length === 0 || pillars[pillars.length - 1].x < canvas.width - pillarSpacing) {
+            if (pillars.length === 0 || pillars[pillars.length - 1].x < canvas.width - 720) {
                 createPillar();
             }
 
@@ -441,11 +465,7 @@
             frameCount++;
 
             draw();
-            requestAnimationFrame((timestamp) => {
-                let deltaTime = timestamp - lastTimestamp;
-                lastTimestamp = timestamp;
-                update(deltaTime);
-            });
+            requestAnimationFrame(update);
         } else {
             draw();
             // Game over screen is now handled separately
@@ -469,17 +489,22 @@
 
         // Draw bee with rotation
         ctx.save();
+        // Move to bee's center
         ctx.translate(bee.x + bee.width / 2, bee.y + bee.height / 2);
+        // Rotate
         ctx.rotate(beeRotation);
+        // Draw bee image
         ctx.drawImage(currentBeeImage, -bee.width / 2, -bee.height / 2, bee.width, bee.height);
         ctx.restore();
 
         // Draw pillars
         pillars.forEach(function(p) {
+            let image = p.isCheckpoint ? checkpointImage : pillarImage;
+
             // Upper pillar
             let upperPillarY = p.gapPosition - p.height;
             ctx.drawImage(
-                pillarImage,
+                image,
                 p.x,
                 upperPillarY,
                 p.width,
@@ -489,7 +514,7 @@
             // Lower pillar
             let lowerPillarY = p.gapPosition + p.gapHeight;
             ctx.drawImage(
-                pillarImage,
+                image,
                 p.x,
                 lowerPillarY,
                 p.width,
@@ -525,13 +550,6 @@
         gameOverScreen.style.display = 'block';
         finalScoreDisplay.innerText = 'SCORE: ' + score;
     }
-
-    function getRandomWaspInterval() {
-        return Math.floor(Math.random() * (28 - 20 + 1)) + 20; // Between 20 and 28 seconds
-    }
-
-    // Variable to track last timestamp for deltaTime calculation
-    let lastTimestamp = 0;
 
     // Update canvas size when the window resizes
     window.addEventListener('resize', function() {
