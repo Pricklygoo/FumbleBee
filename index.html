@@ -121,7 +121,7 @@
     let pillarCount = 0; // To track pillars for scoring
 
     // Define pillarSpacing and increase it by 50%
-    let pillarSpacing = 720 * 1.5; // Original spacing was 720, now 1080
+    let pillarSpacing = 720 * 0.8; // Original spacing was 720, now 1080
 
     const startScreen = document.getElementById('startScreen');
     const scoreDisplay = document.getElementById('score');
@@ -335,7 +335,7 @@
     });
 
     function createPillar() {
-        let baseGapHeight = 260;
+        let baseGapHeight = 240;
         let gapHeight = baseGapHeight * 1.2; // Increase gap by 20%
         let gapPosition = Math.floor(Math.random() * (canvas.height - gapHeight - 200)) + 100;
         pillarCount++;
